@@ -1,8 +1,8 @@
-# 4 Right! -- Technical Specification v1.1
+# 4 Right! -- Technical Specification v1.2
 **App Name:** 4 Right!
-**Version:** 1.1 (single-user, local storage, no backend)
-**Platform:** React SPA, mobile-first, deployed to GitHub Pages
-**Last Updated:** July 10, 2026
+**Version:** 1.2 (single-user, local storage, no backend)
+**Platform:** React SPA, mobile-first, deployed to GitHub Pages (custom domain `4right.app`)
+**Last Updated:** July 15, 2026
 **Tagline:** Play Fair. Pay Up. Repeat.
 
 ---
@@ -22,6 +22,24 @@ This spec has been updated to reflect decisions made during build. Material chan
 9. **New screens:** Players (roster management), PlayerForm (add/edit). Round Setup rebuilt. Player selection reuses the Players screen in `mode=select` (§4.2).
 10. **Design:** color system (navy `#0a1628`, green `#22c55e`, amber `#f59e0b`, red `#ef4444`), tagline "Play Fair. Pay Up. Repeat.", settlement snark "Hate paying out? Play better.", home background image `/golf-bg.jpg`.
 11. **Test suite:** 123 tests across 10 files, all passing.
+
+---
+
+## 0.1 Revisions Since v1.1 (build follow-ups)
+
+UI/logic changes made after v1.1 while hardening the on-course flow. No engine
+signatures changed; the test suite remains 123 tests, all passing.
+
+1. **End Round Early** — the Score Entry hamburger menu now has an "End Round" action that settles on completed holes only, so a round abandoned before hole 18 can still be saved to history (§4.2 Screen 5, Screen 7).
+2. **Delete Round** — Round History adds a per-round "Delete Round" button (in the expanded card) with a confirmation prompt; removal is permanent via `store.deleteRound` (§4.2 Screen 8).
+3. **Payouts card** — the configured payouts are now shown mid-round (Scoreboard, Round tab) and post-round (Settlement) so amounts set at setup stay referenceable (§4.2 Screen 6, Screen 7).
+4. **Stroke indicators in the recap** — Round History's hole-by-hole ledger marks the handicap stroke(s) each player received on each hole (`•` / `••` for a double), so net birdies/eagles are verifiable (§4.2 Screen 8).
+5. **Greenie single-select** — the Score Entry closest-to-pin (greenie) toggle is now radio-style: at most one player per hole, matching the engine rule (§2.5, §4.2 Screen 5).
+6. **Team-game logic for 2 / 3 players** — Round Setup auto-assigns 1v1 for 2 players (no assignment UI) and hides team games entirely for 3 players (even teams impossible); 4 players keep the A/B assignment UI (§4.2 Screen 3).
+7. **Score Entry rebuilt** — full-viewport, non-scrolling layout with `−` / `+` steppers (default to par) and an inline net figure, a status strip, and a header "Board" link; replaces the earlier "1-9 grid / Next disabled until all scores entered" description (§4.2 Screen 5).
+8. **Stroke Allocation Confirmation** — starts scrolled to the top, and hides the match-play stroke-holes section when no team game is selected (skins-only otherwise) (§4.2 Screen 4).
+9. **Scoreboard tabs** — Round / Players / Games tabs; the Players scorecard's running totals count only fully-played holes (every player has a gross), never future holes (§4.2 Screen 6).
+10. **Custom keypad** — numeric fields (handicap index, payouts) use an in-app `NumericKeypad` rather than the OS keyboard, with keyboard-avoidance scrolling so the active field stays visible (§4.2 Screen 2, Screen 3).
 
 ---
 
@@ -495,6 +513,10 @@ Eligible = player marked as closestOnParThree AND grossScore <= holePar
 Maximum one greenie winner per hole.
 If no player qualifies: no greenie awarded, no carry.
 ```
+**UI enforcement:** the Score Entry closest-to-pin toggle is single-select (radio
+behavior) — marking one player clears any other player's mark on that hole, and
+tapping the marked player clears it. This mirrors the engine's "max one greenie
+winner per hole" rule so `closestOnParThree` is never true for two players at once.
 
 **Net Birdie:**
 ```
@@ -819,6 +841,7 @@ The roster screen replaces the old fixed-four "Player Setup". It has **two modes
 - Navy header, back arrow, title "New Player" or "Edit Player".
 - Fields: First Name (required), Last Name (required), Nickname (optional, max 5 chars with a live `n/5` counter), Handicap Index (required, 0.0-54.0, one decimal).
 - Inputs: surface background, focus shows a green border, errors show a red border + message.
+- **Handicap Index uses the in-app `NumericKeypad`** (a custom bottom-sheet keypad), not the OS keyboard: the field is `readOnly` with `inputMode="none"` so the native keyboard never appears, and a `.` key is available for the decimal. On focus the page auto-scrolls so the whole field (label + input + value) sits above the keypad with breathing room — no manual scrolling.
 - Green "Save Player" (validates, upserts via `savePlayer`, returns to roster). In edit mode, a red-outlined "Delete Player" confirms ("Delete [FirstName]? This cannot be undone.") then `deletePlayer`.
 
 No GHIN integration in v1. Manual entry only.
@@ -832,11 +855,14 @@ Single scrollable screen for the 2-4 players passed from selection. Back arrow r
 1. **Date** — surface card showing today formatted "Jul 8, 2026"; tap opens the native date picker. Stored as `YYYY-MM-DD`.
 2. **Course** — segmented control Meadows / Highlands / Fairways (active = green filled, inactive = secondary surface with border), full width, 56px segments.
 3. **Games**
-   - **Team Game** ("Pick one or none"): `Best Ball | Scramble` toggle buttons — selecting one deselects the other; tapping a selected one turns it off. Selected = green filled with a checkmark.
-   - **Team Assignment** (only shown when a team game is selected): one row per player with A / B buttons. Defaults first half of players to A, the rest to B. **Requires even teams** — a 3-player team game shows "…requires even teams" and blocks Start.
+   - **Team Game** ("Pick one or none"): `Best Ball | Scramble` toggle buttons — selecting one deselects the other; tapping a selected one turns it off. Selected = green filled with a checkmark. **The Team Game section is only shown when even teams are possible** — i.e. with **2 or 4 players**. With **3 players** the section is hidden entirely (a 3-player team game is impossible), leaving individual + junk games only.
+   - **Team Assignment** — depends on player count:
+     - **4 players:** one row per player with A / B buttons (defaults first half to A, the rest to B). An uneven split (e.g. 3-1) shows "…requires even teams" and blocks Start.
+     - **2 players:** teams are auto-assigned 1v1 (player 1 → A, player 2 → B); **no assignment UI is shown** — a note reads "1v1 — teams assigned automatically."
+     - **3 players:** not applicable (no team game offered).
    - **Individual Games** ("Pick any"): `Skins | Wolf`, multi-select toggles.
    - **Junk** ("All on by default"): `Greenie / Snake / Sandy / Net Birdie / Net Eagle` in a 2-column grid, all on at load, each toggles independently.
-4. **Payouts** — only shows a field per **currently active** game, updating live as games toggle. Label left, right-aligned `$` input (48px, focus green). Defaults: **Team Game $20, Skins Pot $10, Wolf (per point) $2, Greenie $2, Snake $10, Sandy $2, Net Birdie $2, Net Eagle $4**.
+4. **Payouts** — only shows a field per **currently active** game, updating live as games toggle. Label left, right-aligned `$` input (48px, focus green), **driven by the in-app `NumericKeypad`** (fields are `readOnly` / `inputMode="none"`; the focused field elevates above the keypad's dismiss backdrop so tapping another field switches to it). Defaults: **Team Game $20, Skins Pot $10, Wolf (per point) $2, Greenie $2, Snake $10, Sandy $2, Net Birdie $2, Net Eagle $4**.
 
 **Start Round** — fixed bottom bar, full-width green, 56px. Disabled (opacity 0.4) when no course is selected or a team game is selected with an incomplete/uneven team assignment. On tap:
 - Engine computes course handicaps, differentials, and both stroke-hole lists per player.
@@ -847,14 +873,16 @@ Single scrollable screen for the 2-4 players passed from selection. Back arrow r
 
 **Screen 4: Stroke Allocation Confirmation**
 
-Displayed once after round setup before hole 1.
+Displayed once after round setup before hole 1. **The screen starts scrolled to the
+top** on load so the allocations are read top-to-bottom before confirming.
 
-Shows for each player:
-- Name, Handicap Index, Course Handicap, Differential
-- Match play stroke holes: list of hole numbers
-- Skins stroke holes: list of hole numbers
+Shows one card per player:
+- Header: player name + Handicap Index (`HI 9.6`).
+- Two stat tiles: **Course HCP** and **Differential**.
+- **Stroke Holes (Match Play):** list of hole numbers (or "None"). **Shown only when a team game is selected.** When no team game is played this section is hidden and only the skins holes are shown.
+- **Stroke Holes (Skins):** list of hole numbers in ascending order, with a `×2` marker on any hole that receives a double stroke (course handicap > 18).
 
-Two buttons: "Looks Good" (proceed to hole 1) and "Back" (return to round setup).
+Two buttons: "Looks Good" (activates the round → hole 1) and "Back" (return to round setup).
 
 This screen is the pre-flight check that was missing on July 3.
 
@@ -862,54 +890,73 @@ This screen is the pre-flight check that was missing on July 3.
 
 **Screen 5: Score Entry (per hole)**
 
-This is the primary on-course screen. Optimized for speed and sunlight.
+This is the primary on-course screen. Optimized for speed and sunlight. It is a
+**full-viewport, non-scrolling column** (green header + status strip + player rows +
+bottom bar) sized to fill the screen — one hole at a time, no page scroll.
 
-Header bar:
-- Hole number and par (e.g. "Hole 7 -- Par 3")
-- HCP rank of hole
-- Match play score (e.g. "Team A 1UP")
-- Skins carry count (e.g. "3 skins up for grabs")
-- Snake holder name (e.g. "Snake: Aaron")
+**Header** (green tone):
+- Title "Hole N — Par P" with a "HCP {rank}" subtitle.
+- Right slot: a **"Board"** link → Scoreboard.
+- Left slot: the hamburger (≡) menu, which contains an **"End Round"** action (red) — see below and Screen 7.
 
-Score entry area (one row per player):
-- Player name
-- Large tap targets: 1 through 9+ for gross score
-- Stroke indicator: dot or "+" showing if player receives a stroke this hole (both match play and skins, displayed separately if different)
-- Net score displayed automatically once gross is entered
+**Status strip** (below the header): match-play status on the left (or "—"), skins at
+stake in the center ("N skins up", green), and the snake holder on the right
+("Snake: Aaron", amber) — each only shown for the games in play.
 
-Toggle row per player (only relevant toggles shown per hole):
-- Three-putt (always shown)
-- Sandy — in-bunker flag (always shown)
-- Closest to Pin (shown only on par 3 holes)
+**Player rows** (one equal-height row per player, 2-4 rows filling the viewport):
+- Player name (green).
+- A **`−` / `+` stepper** around the gross score. The gross **defaults to the hole's par** on load; `−`/`+` adjust it (clamped 1-20). Defaulting to par keeps most entries to a tap or two (par = zero taps).
+- An inline **net** figure under the score (`Net: X`), computed live from the full-CH (skins) stroke allocation.
+- Toggle buttons on the right (only relevant ones shown):
+  - **3P** — three-putt (always shown).
+  - **S** — sandy / in-bunker flag (always shown).
+  - **⛳** — closest to pin / greenie (**par 3 holes only**). This toggle is **single-select** per hole (radio behavior): marking one player clears any other; tapping again clears it (§2.5).
 
-Bottom bar:
-- "Next Hole" button (disabled until all four gross scores entered)
-- "View Scoreboard" link
+**Bottom bar:** a **"‹ Prev"** button (disabled on hole 1) and a full-width
+**"Next Hole ›"** button — which reads **"Finish Round ›"** on hole 18 and navigates to
+Settlement. Scores are always present (they default to par), so Next is always enabled;
+committing a hole saves it to `round.holes`.
 
-Snake simultaneous alert:
-- If two or more players have three-putt toggled on the same hole, before allowing "Next Hole" the app presents: "Two players three-putted. Who holds the snake?" with player name buttons.
-- Peter taps the player who finished putting last.
-- Selection is recorded as snakeSimultaneous = true.
+**Snake simultaneous alert:**
+- If two or more players have three-putt toggled on the same hole, tapping Next presents a modal: "Two players three-putted — Who holds the snake? Tap the player who finished putting last." with a button per three-putter.
+- The tapped player is recorded as the holder and `snakeSimultaneous = true`.
+
+**End Round Early** (hamburger → "End Round"): opens a confirmation modal —
+"End round after hole {completed}? Settlement will be calculated on completed holes
+only." On confirm the app goes to Settlement, which settles on the holes entered so far;
+saving there writes a completed round to history (§Screen 7). Only fully-entered holes
+count. Placed in the drawer rather than the header so it renders reliably on a narrow
+phone.
 
 ---
 
 **Screen 6: Scoreboard**
 
-Accessible from any hole via "View Scoreboard" link. Read only.
+Accessible from any hole via the header **"Board"** link. Read-only. A **✕ close**
+button (top-right) returns to Score Entry. Organized into **three tabs**:
 
-Sections:
-- Match Play: current status, hole-by-hole result grid (W / L / H per hole per team)
-- Skins: standings table (player, skins won), current carry count
-- Snake: current holder, history of transfers
-- Side Bets: per-player tally (G / NB / NE / S counts and dollar totals)
+**Round tab:**
+- **Match Play** (when a team game is on): current status, team rosters, and a front/back hole-by-hole result grid (W = Team A won / L = Team B won / H = halved).
+- **Skins:** standings table (player, skins won) with the current carry count (or "Pot dead" if the 18th carried).
+- **Snake:** current holder and the transfer history (hole → new holder).
+- **Payouts:** a card listing the **configured payout for each enabled game** (Best Ball/Scramble, Skins Pot, Wolf per point, Snake, Greenie, Net Birdie, Net Eagle, Sandie), so amounts set at setup stay referenceable mid-round.
 
-Back button returns to score entry.
+**Players tab (scorecard):** a per-player grid of gross (large) + net (small) per hole
+with OUT / IN / TOT summary rows. **Running totals count only fully-played holes** —
+a hole contributes to OUT/IN/TOT only once *every* player has a gross entered, so
+future/partial holes are never included.
+
+**Games tab:** a game picker (only enabled games) showing that game's per-hole outcome
+down the card (e.g. skins winner/carry, match-play team, snake holder, or side-bet
+winners), plus a per-player dollar tally for the selected side-bet game.
 
 ---
 
 **Screen 7: End of Round -- Settlement**
 
-Triggered when "Finish Round" is tapped after hole 18. Header snark: **"Hate paying out? Play better."**
+Triggered when **"Finish Round"** is tapped after hole 18, **or** via **"End Round"**
+from the Score Entry hamburger before hole 18 (in which case it settles on the holes
+completed so far). Header snark: **"Hate paying out? Play better."**
 
 On load, the screen resolves the course from `round.courseId` via `getCourses()` and attaches `course.holes` as `courseHoles` (with `round.holes` from the active round) so the engine has full hole definitions, then calls `computeSettlement`.
 
@@ -919,22 +966,28 @@ Displays only the sections for games that were played (`teamGame` / `individualG
 - Wolf points (when Wolf was played)
 - Snake final holder
 - Side-bet totals per player
-- Settlement breakdown per player: `Team / Skins / Wolf / Snake / Side` columns + net (every column zero-sum)
+- **Payouts:** a card listing the configured payout for each enabled game (same as the Scoreboard Payouts card), so amounts are referenceable post-round.
+- Settlement breakdown per player: `Team / Skins / Wolf / Snake / Side` columns + net (every column zero-sum), with each player's final gross shown for GHIN posting
 - Payment instructions in plain English: "Peter pays Aaron $101.34"
 
-"Save Round" button saves to round history. "New Round" button returns to home.
+"Save Round" button saves the completed round to history (stamps `status: "complete"`,
+snapshots player names, clears the active round). "New Round" button returns to home.
 
 ---
 
 **Screen 8: Round History**
 
-List of completed rounds, most recent first.
+List of completed rounds, most recent first. Each card header shows the **course and
+date**; tap to expand.
 
-Each entry shows:
-- Date, course, winner summary
-- Tap to expand full settlement detail
+**Expanded detail:**
+- Team-game match status (when applicable).
+- **Settlement list** per player: display name, final gross, net, and a `MP / Skins / Snake / Side` money breakdown. (The MP column reads the settlement `teamGame` value and renders `$0.00` when no team game was played — never `$NaN`.)
+- **Who-pays-who** payment instructions.
+- **Hole-by-hole ledger** ("Hole by Hole"): for each entered hole — hole number + par; each player's gross with a **handicap-stroke indicator** (`•` for one stroke, `••` for a double) so a net birdie/eagle can be verified; the hole's events (skin winner or carry, snake transfer, greenie, net birdie/eagle, sandy); and each player's money flow on that hole (side bets + skins won).
+- **Delete Round** — a red-outlined button. Tapping it prompts "Delete this round? … This cannot be undone." and, on confirm, permanently removes the round via `store.deleteRound` and re-derives the list.
 
-No editing of completed rounds in v1.
+Completed rounds are not otherwise editable in v1 (delete only).
 
 ---
 
@@ -964,18 +1017,21 @@ fourright/
       Scoreboard.jsx
       Settlement.jsx
       RoundHistory.jsx
-      AppChrome.jsx          -- shared header + navigation drawer
+      AppChrome.jsx          -- shared header + navigation drawer (incl. per-screen menu actions)
+      NumericKeypad.jsx      -- custom in-app numeric bottom-sheet keypad
     utils/
       generateId.js
       playerUtils.js         -- getPlayerName / getPlayerFullName
+      roundModel.js          -- withLegacyRoundFields: grouped-shape -> legacy games/teams/payouts view fields
     storage/
-      store.js               -- local storage read/write; player + round APIs;
-                                pre-loaded Prestonwood course data
+      store.js               -- local storage read/write; player + round APIs
+                                (incl. deleteRound); pre-loaded Prestonwood course data
     App.jsx                  -- hash router (incl. /players, /round/players, /round/setup)
     main.jsx
     styles.css
   public/
     golf-bg.jpg              -- home screen background
+    CNAME                    -- custom domain (4right.app) for GitHub Pages
   index.html                 -- Vite entry HTML (project root)
   tests/
     engine/
