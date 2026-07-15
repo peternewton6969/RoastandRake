@@ -167,12 +167,28 @@ export default function PlayerForm({ navigate, mode, playerId }) {
   const [keypadOpen, setKeypadOpen] = useState(false);
   const handicapRef = useRef(null);
 
-  // Keyboard avoidance: when the keypad opens, scroll the handicap field into the
-  // visible area above the keypad sheet so the user can always see what they type.
+  // Keyboard avoidance: when the field is tapped and the keypad opens, scroll the
+  // page so the field sits fully in the space *above* the keypad — no manual
+  // scrolling by the user. scrollIntoView({block:'center'}) is not enough here: it
+  // centers within the full viewport, but our in-app keypad overlays the bottom of
+  // that viewport, so the field can still land behind it. We instead center the
+  // field in the gap between the header and the measured keypad top.
   useEffect(() => {
-    if (keypadOpen && handicapRef.current) {
-      handicapRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }
+    if (!keypadOpen || !handicapRef.current) return undefined;
+    const el = handicapRef.current;
+    // Defer one frame so the keypad sheet and the extra bottom padding are laid out.
+    const raf = requestAnimationFrame(() => {
+      const keypad = document.querySelector('[aria-label="Numeric keypad"]');
+      const keypadH = keypad ? keypad.getBoundingClientRect().height : 360;
+      const headerH = 56;
+      const keypadTop = window.innerHeight - keypadH;
+      const rect = el.getBoundingClientRect();
+      // Center the field vertically between the header bottom and the keypad top,
+      // never letting it slip under the sticky header.
+      const desiredTop = Math.max(headerH + 8, headerH + (keypadTop - headerH - rect.height) / 2);
+      window.scrollBy({ top: rect.top - desiredTop, behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(raf);
   }, [keypadOpen]);
 
   const back = () => navigate('players');

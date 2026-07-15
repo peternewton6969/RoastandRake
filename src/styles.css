@@ -88,9 +88,17 @@ body {
   height: var(--header-h);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: var(--tap) 1fr var(--tap);
+  /* Outer tracks hold a single tap target by default (keeps the title centered on
+     empty/one-action headers) but grow to fit multiple actions — e.g. Score Entry's
+     Board + End — so nothing overflows off a narrow phone screen. */
+  grid-template-columns: minmax(var(--tap), max-content) 1fr minmax(var(--tap), max-content);
   align-items: center;
   padding: 0 4px;
+}
+
+/* Right-slot action cluster sits hard against the right edge. */
+.app-header-inner > :last-child {
+  justify-self: end;
 }
 
 .hdr-btn {
