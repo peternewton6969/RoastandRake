@@ -1,6 +1,6 @@
-# 4 Right! -- Technical Specification v1.2
+# 4 Right! -- Technical Specification v1.3
 **App Name:** 4 Right!
-**Version:** 1.2 (single-user, local storage, no backend)
+**Version:** 1.3 (single-user, local storage; Claude API used for one optional AI feature)
 **Platform:** React SPA, mobile-first, deployed to GitHub Pages (custom domain `4right.app`)
 **Last Updated:** July 15, 2026
 **Tagline:** Play Fair. Pay Up. Repeat.
@@ -43,6 +43,13 @@ signatures changed; the test suite remains 123 tests, all passing.
 
 ---
 
+## 0.2 Revisions Since v1.2 (Character Notes)
+
+1. **Character Notes** — player profiles gain an append-only log of timestamped notes plus an optional AI-generated character summary. New data-model fields `characterNotes` / `characterSummary` (§1.1, §1.7), a Character Notes section on the player edit screen (§4.2 Screen 2), a read-only summary card on the roster (§4.2 Screen 2), and store helpers `addCharacterNote` / `deleteCharacterNote` / `setCharacterSummary`.
+2. **First external dependency** — the summary calls the **Claude API** (`claude-sonnet-4-6`) directly from the browser via the official `@anthropic-ai/sdk`. The app remains backend-less and offline for everything else; only "Generate Summary" makes a network call. The API key is entered once and kept in this device's `localStorage` (never bundled), so nothing is leaked by the public GitHub Pages deploy. Service module: `src/services/characterSummary.js` (§1.7, §5).
+
+---
+
 ## 1. Data Model
 
 All state lives in browser local storage. No backend. No auth. Four top-level keys:
@@ -63,6 +70,10 @@ All state lives in browser local storage. No backend. No auth. Four top-level ke
   "lastName": "Newton",
   "nickname": "Pete",
   "handicapIndex": 9.6,
+  "characterNotes": [
+    { "id": "uuid", "text": "Fishes for used balls despite having a new job", "createdAt": "2026-07-12T19:32:00Z" }
+  ],
+  "characterSummary": "A man who treats a $2 sleeve of Titleists like the Hope Diamond…",
   "createdAt": "2026-07-04T00:00:00Z",
   "updatedAt": "2026-07-04T00:00:00Z"
 }
@@ -73,9 +84,10 @@ All state lives in browser local storage. No backend. No auth. Four top-level ke
 - `firstName` and `lastName` are required. There is **no** single `name` field.
 - `nickname` is optional, max 5 characters (trimmed on save). Display name uses the nickname when present and non-empty, otherwise the first name. Full name is `firstName + " " + lastName`.
 - `handicapIndex` is a float in the range 0.0-54.0, one decimal place.
+- `characterNotes` is an **append-only** array of timestamped notes (default `[]`); `characterSummary` is the most recent AI-generated blurb (default `""`). See §1.7.
 - Player profiles persist across rounds. The index lives on the profile and is snapshotted into each round's `playerRounds` at setup.
-- **Legacy migration:** any pre-v1.1 profile carrying a single `name` field is migrated on app load — `name` splits on the first space into `firstName`/`lastName`, and `nickname` is derived from the first 5 lowercased characters of `firstName`. Idempotent.
-- Persistence helpers live in `store.js`: `savePlayer` (validated upsert), `deletePlayer`, `getPlayerById`, `migratePlayers`. Display helpers `getPlayerName` / `getPlayerFullName` live in `utils/playerUtils.js`.
+- **Legacy migration:** any pre-v1.1 profile carrying a single `name` field is migrated on app load — `name` splits on the first space into `firstName`/`lastName`, and `nickname` is derived from the first 5 lowercased characters of `firstName`. Idempotent. Migration also initializes `characterNotes` (`[]`) and `characterSummary` (`""`).
+- Persistence helpers live in `store.js`: `savePlayer` (validated upsert — preserves `characterNotes`/`characterSummary` across profile edits), `deletePlayer`, `getPlayerById`, `migratePlayers`, plus the character-notes helpers in §1.7. Display helpers `getPlayerName` / `getPlayerFullName` live in `utils/playerUtils.js`.
 
 ---
 
@@ -301,6 +313,39 @@ This is the USGA formula. Round to nearest integer. Compute for each player at r
 - skinsCarryIn is the number of skins carried into this hole from prior unresolved holes.
 - **Scramble holes** do not use per-player `scores`. In a scramble round each hole instead records a single team gross per side: `"teamScores": { "A": 4, "B": 5 }` (a `null` team score means that team picked up). See §2.8.
 - **Wolf** decisions/results are stored per hole in the round's `wolfHoles` array as WolfHoleRecords (§2.7), not inside HoleScore.
+
+---
+
+### 1.7 Character Notes
+
+Player profiles carry a running, append-only log of "character notes" — the running
+commentary the group keeps on each other — plus an optional AI-generated summary.
+This is a **profile** feature, independent of any round.
+
+**Shape** (fields on the Player, §1.1):
+
+```json
+"characterNotes": [
+  { "id": "uuid", "text": "Fishes for used balls despite having a new job", "createdAt": "2026-07-12T19:32:00Z" },
+  { "id": "uuid", "text": "Ordered nachos before Jim's putt stopped rolling on 18", "createdAt": "2026-07-12T19:45:00Z" }
+],
+"characterSummary": "…most recently generated summary string…"
+```
+
+**Rules:**
+- `characterNotes` is an array of entries `{ id, text, createdAt }` — **not** a single editable string. Default `[]`.
+- The log is **append and delete only**. Existing entries are never edited in place. Order in storage is chronological (oldest first); the UI displays newest-first.
+- `characterSummary` is a single string holding the most recently generated AI summary (default `""`). Regenerating overwrites it. It persists so the commentary engine can reuse it later.
+- **Store helpers** (all operate on an existing player by id, mutate only these fields, stamp `updatedAt`, and persist immediately — independent of the profile's Save button):
+  - `addCharacterNote(playerId, text)` — trims `text`, ignores empty, appends `{ id, text, createdAt }`.
+  - `deleteCharacterNote(playerId, noteId)` — removes one entry by id.
+  - `setCharacterSummary(playerId, summary)` — stores the latest summary.
+
+**AI summary generation** (`src/services/characterSummary.js`):
+- Model: **`claude-sonnet-4-6`** via the official `@anthropic-ai/sdk` (browser call, `dangerouslyAllowBrowser`).
+- **System prompt** instructs a two-to-three-sentence character summary of a golfer from partner-provided notes, in a **sarcastic, affectionate, locker-room** voice — "like something the smartest guy in the cart would say about someone he has played with for years," summary only, no preamble.
+- **User message** lists all notes as a numbered list, followed by "Summarize this player in two to three sentences."
+- **API key:** the app has no backend, so the key is entered once (prompted on first use) and stored in this device's `localStorage` under `fourright_anthropic_key` — never bundled into the build (which is public on GitHub Pages). A 401/403 clears the stored key so the next attempt re-prompts.
 
 ---
 
@@ -830,6 +875,7 @@ The roster screen replaces the old fixed-four "Player Setup". It has **two modes
   - One card per player: nickname in large green (falls back to first name), full name below, handicap index in amber with an "HCP" label.
   - **Tap a card → edit** that player (route `/players/:id/edit`).
   - **Swipe left → reveal a red Delete** button.
+  - **Character summary:** when a player has a `characterSummary`, a read-only green-bordered card sits directly below their row, labeled "**{nickname} according to the Captain**" (§1.7). Nothing shows if no summary has been generated.
   - Empty state: "No players yet. Add your first player."
 
 - **`mode=select`** (route `/round/players`, reached from Home's "New Round") — player selection for a new round.
@@ -843,6 +889,12 @@ The roster screen replaces the old fixed-four "Player Setup". It has **two modes
 - Inputs: surface background, focus shows a green border, errors show a red border + message.
 - **Handicap Index uses the in-app `NumericKeypad`** (a custom bottom-sheet keypad), not the OS keyboard: the field is `readOnly` with `inputMode="none"` so the native keyboard never appears, and a `.` key is available for the decimal. On focus the page auto-scrolls so the whole field (label + input + value) sits above the keypad with breathing room — no manual scrolling.
 - Green "Save Player" (validates, upserts via `savePlayer`, returns to roster). In edit mode, a red-outlined "Delete Player" confirms ("Delete [FirstName]? This cannot be undone.") then `deletePlayer`.
+
+**Character Notes** (edit mode only — a saved player must exist to attach notes to). A section below the Handicap Index field, in three parts (§1.7):
+
+1. **Add a note** — a multi-line text area (≥ 3 lines) with the placeholder "Tap the mic on your keyboard to speak your mind. No filter required." and an **Add Note** button (disabled while blank). Tapping it appends a timestamped entry via `addCharacterNote` and clears the field. This text area uses the **native** keyboard (the placeholder invites voice dictation) — unlike the handicap field's custom keypad.
+2. **Notes log** — existing notes in **reverse chronological order** (newest first). Each shows the text, the date it was added in small gray text below it, and a small **✕** delete button on the right. Delete prompts "Remove this note?"; on confirm it removes that entry via `deleteCharacterNote`. Append and delete only — no editing.
+3. **Generate Summary** — shown only when at least one note exists. Tapping it calls the Claude API (§1.7) with all notes and renders the result in a read-only card labeled "**Character Summary**", persisting it via `setCharacterSummary` so it survives and feeds the roster card and the future commentary engine. The button shows "Generating…" while in flight; each tap overwrites the previous summary. Errors surface inline in red.
 
 No GHIN integration in v1. Manual entry only.
 
@@ -1019,13 +1071,16 @@ fourright/
       RoundHistory.jsx
       AppChrome.jsx          -- shared header + navigation drawer (incl. per-screen menu actions)
       NumericKeypad.jsx      -- custom in-app numeric bottom-sheet keypad
+    services/
+      characterSummary.js    -- Claude API call (claude-sonnet-4-6) for the AI character summary
     utils/
       generateId.js
       playerUtils.js         -- getPlayerName / getPlayerFullName
       roundModel.js          -- withLegacyRoundFields: grouped-shape -> legacy games/teams/payouts view fields
     storage/
       store.js               -- local storage read/write; player + round APIs
-                                (incl. deleteRound); pre-loaded Prestonwood course data
+                                (incl. deleteRound, character-notes helpers);
+                                pre-loaded Prestonwood course data
     App.jsx                  -- hash router (incl. /players, /round/players, /round/setup)
     main.jsx
     styles.css
@@ -1046,7 +1101,7 @@ fourright/
       settlement.test.js     -- legacy shape + new grouped shape (incl. 3-player)
     storage/
       store.test.js
-  package.json
+  package.json               -- runtime deps: react, react-dom, @anthropic-ai/sdk (AI summary)
   vite.config.js             -- Vite for build, fast dev server
 ```
 
