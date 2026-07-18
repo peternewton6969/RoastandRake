@@ -2,14 +2,17 @@ import { test, expect } from '@playwright/test';
 
 // Regression guard for the iOS "Add Note does nothing after the first note" bug.
 //
-// Root cause: tapping the Add Note button while the note textarea is focused
-// blurred the field, which on iOS Safari dismisses the soft keyboard and swallows
-// the follow-up click — so the second note never appended. The fix is an
-// onMouseDown preventDefault on the button (the same guard NumericKeypad uses),
-// which keeps focus on the textarea so the click fires.
+// Root cause: the button was `disabled` on `noteText.trim() === ''` and the
+// handler read that same React state. On iOS Safari, dictation / autocorrect /
+// predictive text can change the textarea's value WITHOUT firing a timely
+// onChange, so `noteText` state stays '' while text is visibly in the field —
+// leaving the button disabled and the tap dead, so no second note appended.
 //
-// This runs in mobile WebKit (see playwright.config.js), the only place the
-// failure is observable — the Vitest suite has no DOM/browser.
+// Fix: the button is no longer disabled on stale state, and handleAddNote reads
+// the live value from the textarea DOM node (noteInputRef) instead of state.
+//
+// These run in mobile WebKit (see playwright.config.js) — the engine iOS uses —
+// which is where the failure is observable; the Vitest suite has no DOM.
 
 const PLAYER = {
   id: 'p-smoke-1',
@@ -21,48 +24,69 @@ const PLAYER = {
 
 const NOTE_FIELD = 'textarea[aria-label="New character note"]';
 
-test('appends a second Character Note after the first (iOS keyboard tap guard)', async ({
-  page,
-}) => {
-  // Seed one player, then open their edit screen.
+async function openEditScreen(page) {
   await page.goto('/#/home');
   await page.evaluate((p) => {
     localStorage.setItem('fourright_players', JSON.stringify([p]));
   }, PLAYER);
   await page.goto(`/#/players/${PLAYER.id}/edit`);
+  await expect(page.locator(NOTE_FIELD)).toBeVisible();
+}
 
+const storedNoteCount = (page) =>
+  page.evaluate(() => {
+    const p = JSON.parse(localStorage.getItem('fourright_players') || '[]')[0];
+    return (p?.characterNotes || []).length;
+  });
+
+test('appends multiple notes via normal typed input', async ({ page }) => {
+  await openEditScreen(page);
   const field = page.locator(NOTE_FIELD);
   const addNote = page.getByRole('button', { name: 'Add Note', exact: true });
-  const noteRows = page.getByRole('button', { name: 'Delete note' }); // one per saved note
-  const focusOnField = () =>
-    page.evaluate((sel) => document.activeElement === document.querySelector(sel), NOTE_FIELD);
+  const noteRows = page.getByRole('button', { name: 'Delete note' });
 
-  await expect(field).toBeVisible();
-
-  // First note: focus the field (soft keyboard would open on a real device),
-  // type, tap Add Note.
   await field.tap();
   await field.fill('Aaron three-putted from four feet.');
   await addNote.tap();
-
   await expect(noteRows).toHaveCount(1);
-  await expect(field).toHaveValue(''); // textarea reset after append
-  // The regression sentinel: the tap must NOT blur the textarea. If it does, iOS
-  // dismisses the keyboard and swallows the click, breaking the next add.
-  expect(await focusOnField()).toBe(true);
+  await expect(field).toHaveValue('');
 
-  // Second note — the exact interaction the bug broke.
   await field.tap();
   await field.fill('Then blamed the greenskeeper.');
   await addNote.tap();
-
   await expect(noteRows).toHaveCount(2);
-  expect(await focusOnField()).toBe(true);
 
-  // Both notes are actually persisted, not just rendered.
-  const stored = await page.evaluate(() => {
-    const p = JSON.parse(localStorage.getItem('fourright_players') || '[]')[0];
-    return (p.characterNotes || []).length;
-  });
-  expect(stored).toBe(2);
+  expect(await storedNoteCount(page)).toBe(2);
+});
+
+test('appends a note when iOS updates the field without firing onChange (state desync)', async ({
+  page,
+}) => {
+  await openEditScreen(page);
+  const field = page.locator(NOTE_FIELD);
+  const addNote = page.getByRole('button', { name: 'Add Note', exact: true });
+  const noteRows = page.getByRole('button', { name: 'Delete note' });
+
+  // First note normally, so we're in the post-first-note state the bug needs.
+  await field.tap();
+  await field.fill('Aaron three-putted from four feet.');
+  await addNote.tap();
+  await expect(noteRows).toHaveCount(1);
+
+  // Simulate the iOS mechanism: set the field's DOM value directly, WITHOUT
+  // dispatching an input/change event, so React's noteText state stays ''. This
+  // is what dictation / autocorrect / predictive text can do on real iPhones.
+  await page.evaluate((sel) => {
+    const ta = document.querySelector(sel);
+    ta.focus();
+    ta.value = 'Then blamed the greenskeeper.';
+  }, NOTE_FIELD);
+
+  // The button must remain tappable (not disabled by stale state)...
+  await expect(addNote).toBeEnabled();
+  await addNote.tap();
+
+  // ...and the note must actually append and persist, read from the live field.
+  await expect(noteRows).toHaveCount(2);
+  expect(await storedNoteCount(page)).toBe(2);
 });

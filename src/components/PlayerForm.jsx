@@ -293,6 +293,7 @@ export default function PlayerForm({ navigate, mode, playerId }) {
     Array.isArray(existing?.characterNotes) ? existing.characterNotes : [],
   );
   const [noteText, setNoteText] = useState('');
+  const noteInputRef = useRef(null); // read the live field value at tap time (see handleAddNote)
   const [summary, setSummary] = useState(existing?.characterSummary ?? '');
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState('');
@@ -382,10 +383,18 @@ export default function PlayerForm({ navigate, mode, playerId }) {
 
   // --- Character Notes handlers (persist through store.js immediately) ---
   function handleAddNote() {
-    if (!existing || noteText.trim() === '') return;
-    const updated = addCharacterNote(existing.id, noteText);
+    // Read the note straight from the DOM node, not React state. On iOS Safari,
+    // dictation / autocorrect / predictive text can change the field without
+    // firing a timely onChange, so `noteText` state can still be '' at tap time
+    // even though text is visibly present. Reading the element's live value (with
+    // state as a fallback for keyboard/programmatic activation) sidesteps that
+    // desync entirely — the root cause of "Add Note does nothing after note one".
+    const text = (noteInputRef.current?.value ?? noteText).trim();
+    if (!existing || text === '') return;
+    const updated = addCharacterNote(existing.id, text);
     if (updated) setNotes(updated.characterNotes);
     setNoteText('');
+    if (noteInputRef.current) noteInputRef.current.value = ''; // clear even if a render lags
   }
 
   function handleDeleteNote(noteId) {
@@ -499,6 +508,7 @@ export default function PlayerForm({ navigate, mode, playerId }) {
 
             {/* Part 1 — add a note */}
             <textarea
+              ref={noteInputRef}
               style={styles.textarea}
               rows={3}
               value={noteText}
@@ -509,14 +519,12 @@ export default function PlayerForm({ navigate, mode, playerId }) {
             <button
               type="button"
               style={{ ...styles.addNote, opacity: noteText.trim() === '' ? 0.4 : 1 }}
-              disabled={noteText.trim() === ''}
-              // iOS Safari: tapping this while the textarea is focused first blurs
-              // the field to dismiss the keyboard, and the follow-up click gets
-              // swallowed — so after the first note, "Add Note" silently does
-              // nothing. Preventing the default mousedown keeps focus on the
-              // textarea (keyboard stays up for the next note) and lets the click
-              // fire reliably. Same guard NumericKeypad uses for its keys.
-              onMouseDown={(e) => e.preventDefault()}
+              // Intentionally NOT disabled on `noteText.trim() === ''`. On iOS that
+              // state can lag the field's real content (dictation/autocorrect fire
+              // no timely onChange), which would leave the button disabled while
+              // text is visibly present, so the tap does nothing — this is the bug.
+              // The button stays tappable; handleAddNote reads the live field value
+              // and no-ops when it's genuinely blank.
               onClick={handleAddNote}
             >
               Add Note
