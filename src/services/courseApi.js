@@ -146,29 +146,23 @@ export async function searchCourses(query) {
   const q = String(query || '').trim();
   if (q.length < 3) return [];
   const url = `${OPENGOLF_BASE}/v1/courses/search?q=${encodeURIComponent(q)}`;
-  // eslint-disable-next-line no-console
-  console.info('[courseApi] SEARCH GET', url);
   let res;
   try {
     res = await fetch(url, { headers: { Accept: 'application/json' } });
   } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[courseApi] search network error:', url, e);
     throw apiError('Course search is unavailable right now. Check your connection.', {
       code: 'network',
       cause: e,
     });
   }
   if (!res.ok) {
+    // eslint-disable-next-line no-console
+    console.error('[courseApi] search failed:', res.status, url);
     throw apiError(`Course search failed (${res.status}).`, { status: res.status });
   }
-  const json = await res.json();
-  const rows = mapSearchResults(json);
-  // Diagnostic: show the raw response and the ids we extract, so a wrong id field
-  // (a common cause of the follow-up scorecard 404) is visible.
-  // eslint-disable-next-line no-console
-  console.info('[courseApi] SEARCH raw response:', json);
-  // eslint-disable-next-line no-console
-  console.info('[courseApi] SEARCH mapped ids:', rows.map((r) => ({ id: r.id, name: r.name })));
-  return rows;
+  return mapSearchResults(await res.json());
 }
 
 /**
@@ -184,23 +178,21 @@ export async function getScorecard(courseId) {
   if (cached) return { scorecard: cached, source: 'cache', durationMs: 0 };
 
   const url = `${OPENGOLF_BASE}/api/v1/courses/${encodeURIComponent(courseId)}`;
-  // Diagnostic: the exact id from the search result and the URL built from it.
-  // eslint-disable-next-line no-console
-  console.info('[courseApi] SCORECARD fetch: courseId=%o url=%s', courseId, url);
-
   const start = Date.now();
   let res;
   try {
     res = await fetch(url, { headers: { Accept: 'application/json' } });
   } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[courseApi] scorecard network error:', url, e);
     throw apiError(`Could not reach the course service. GET ${url}`, {
       code: 'network',
       cause: e,
     });
   }
-  // eslint-disable-next-line no-console
-  console.info('[courseApi] SCORECARD response: status=%d url=%s', res.status, url);
   if (!res.ok) {
+    // eslint-disable-next-line no-console
+    console.error('[courseApi] scorecard failed:', res.status, 'courseId=', courseId, url);
     // Include the full URL + id in the message so it's readable in the on-screen
     // error (no devtools needed on a phone).
     throw apiError(`Course fetch failed (${res.status}). courseId=${courseId} · GET ${url}`, {

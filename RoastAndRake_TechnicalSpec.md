@@ -420,8 +420,8 @@ the unique React key:
 **API caveat:** the OpenGolfAPI contract is handled entirely in the `mapSearchResults`
 / `mapScorecard` / `buildCourseFromTee` helpers in `src/services/courseApi.js`; if the
 live contract shifts, adjust only those helpers. The app otherwise consumes the
-normalized shape above. (`courseApi` also logs the exact request URLs + ids to the
-console, and includes the URL + id in any fetch-error message, to aid diagnosis.)
+normalized shape above. (`courseApi` logs failures to the console — errors only —
+and includes the URL + id in any fetch-error message, to aid diagnosis.)
 
 **Analytics event log** (`src/utils/analytics.js`) — `logEvent(type, data)` appends a
 `{ type, t (epoch ms), iso, ...data }` record to `localStorage` under `fourright_analytics`,
