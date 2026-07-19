@@ -55,7 +55,7 @@ const styles = {
     fontFamily: 'inherit',
   },
   hint: { fontSize: 12, color: C.dim },
-  error: { fontSize: 13, color: C.danger },
+  error: { fontSize: 13, color: C.danger, wordBreak: 'break-all' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 },
   row: {
     display: 'flex',
