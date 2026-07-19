@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   getPlayers,
   getCourses,
   loadDefaultCourses,
+  upsertCourse,
   setActiveRound,
 } from '../storage/store.js';
 import {
@@ -13,7 +14,9 @@ import {
 } from '../engine/index.js';
 import { generateId } from '../utils/generateId.js';
 import { getPlayerName } from '../utils/playerUtils.js';
+import { logEvent, EVENTS } from '../utils/analytics.js';
 import AppHeader from './AppChrome.jsx';
+import CoursePicker from './CoursePicker.jsx';
 import NumericKeypad from './NumericKeypad.jsx';
 
 // Screen 3: Round Setup. Single scrollable screen — date, course, games
@@ -276,13 +279,34 @@ export default function RoundSetup({ navigate, playerIds }) {
     }
     return all;
   });
-  const [courses] = useState(() => {
+  // Suggested (verified Prestonwood) courses — round-ready, load instantly, bypass
+  // the API entirely. Ensures they exist in the store so downstream lookups resolve.
+  const [suggested] = useState(() => {
     const c = getCourses();
     return c.length ? c : loadDefaultCourses();
   });
 
   const [date, setDate] = useState(today);
-  const [courseId, setCourseId] = useState(() => courses[0]?.id ?? '');
+  // The resolved round-ready course ({id,name,rating,slope,par,holes,...}) or null.
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selectionSource, setSelectionSource] = useState(null); // 'hardcoded'|'cache'|'live'
+
+  // Abandonment tracking: the furthest step the user reached in course selection,
+  // and whether they confirmed. On unmount without a confirm we log an abandon.
+  const lastStepRef = useRef(null);
+  const confirmedRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      if (lastStepRef.current && !confirmedRef.current) {
+        logEvent(EVENTS.SELECTION_ABANDONED, { lastStep: lastStepRef.current });
+      }
+    };
+  }, []);
+
+  function handleCourseChange(course, meta) {
+    setSelectedCourse(course);
+    setSelectionSource(course ? meta?.source ?? null : null);
+  }
   const [teamGame, setTeamGame] = useState(null); // null | 'bestBall' | 'scramble'
   const [individualGames, setIndividualGames] = useState([]);
   const [junkGames, setJunkGames] = useState(() => JUNK_GAMES.map((g) => g.key)); // all on
@@ -310,7 +334,7 @@ export default function RoundSetup({ navigate, playerIds }) {
   const countB = players.length - countA;
   const teamsBalanced = countA === countB; // even split: 1v1, 2v2, ...
   const teamComplete = !teamGameSelected || teamsBalanced;
-  const canStart = courseId !== '' && teamComplete;
+  const canStart = selectedCourse !== null && teamComplete;
 
   const teamGameLabel = teamGame === 'scramble' ? 'Scramble' : 'Best Ball';
 
@@ -350,7 +374,17 @@ export default function RoundSetup({ navigate, playerIds }) {
   function handleStart() {
     if (!canStart) return;
 
-    const course = courses.find((c) => c.id === courseId);
+    const course = selectedCourse;
+    // Persist the resolved course so every screen that resolves round.courseId
+    // through getCourses() (ScoreEntry, Scoreboard, Settlement, history) works.
+    upsertCourse(course);
+    logEvent(EVENTS.SELECTION_CONFIRMED, {
+      courseName: course.name,
+      teeName: course.teeName ?? null,
+      source: selectionSource ?? 'hardcoded',
+    });
+    confirmedRef.current = true;
+
     const holes = course.holes;
     const rankByHole = Object.fromEntries(holes.map((h) => [h.number, h.hcpRank]));
 
@@ -385,7 +419,7 @@ export default function RoundSetup({ navigate, playerIds }) {
     const round = {
       id: generateId(),
       date,
-      courseId,
+      courseId: course.id,
       status: 'active',
       playerIds: players.map((p) => p.id),
       teamAssignments: teamGameSelected
@@ -444,18 +478,14 @@ export default function RoundSetup({ navigate, playerIds }) {
         {/* Section 2: Course */}
         <section style={styles.section}>
           <span style={styles.label}>Course</span>
-          <div style={styles.segmented} role="group" aria-label="Course">
-            {courses.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                style={styles.segment(courseId === c.id)}
-                onClick={() => setCourseId(c.id)}
-              >
-                {c.name.replace('Prestonwood ', '')}
-              </button>
-            ))}
-          </div>
+          <CoursePicker
+            suggested={suggested}
+            value={selectedCourse}
+            onChange={handleCourseChange}
+            onStep={(s) => {
+              lastStepRef.current = s;
+            }}
+          />
         </section>
 
         {/* Section 3: Games */}

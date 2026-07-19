@@ -8,6 +8,7 @@ import ScoreEntry from './components/ScoreEntry.jsx';
 import Scoreboard from './components/Scoreboard.jsx';
 import Settlement from './components/Settlement.jsx';
 import RoundHistory from './components/RoundHistory.jsx';
+import Analytics from './components/Analytics.jsx';
 
 // Client-side routing for all screens (spec section 4.2). We use the URL hash
 // rather than pulling in a router dependency: it's tiny, gives the iPhone back
@@ -30,6 +31,7 @@ const ROUTES = {
   scoreboard: Scoreboard,
   settlement: Settlement,
   history: RoundHistory,
+  analytics: Analytics,
 };
 
 const DEFAULT_ROUTE = 'home';

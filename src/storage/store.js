@@ -65,11 +65,28 @@ export const getPlayers = () => readKey(STORAGE_KEYS.players, []);
 export const setPlayers = (players) => writeKey(STORAGE_KEYS.players, players);
 export const clearPlayers = () => clearKey(STORAGE_KEYS.players);
 
-// --- Courses (read-only, pre-loaded) -------------------------------------------
+// --- Courses (pre-loaded Prestonwood set + on-demand fetched courses) ----------
 
 export const getCourses = () => readKey(STORAGE_KEYS.courses, []);
 export const setCourses = (courses) => writeKey(STORAGE_KEYS.courses, courses);
 export const clearCourses = () => clearKey(STORAGE_KEYS.courses);
+
+/**
+ * Insert or replace one course by id, leaving the rest untouched. Used when a
+ * course fetched via the API (or a chosen tee thereof) is committed to a round, so
+ * every screen that resolves `round.courseId` through getCourses() keeps working.
+ * @returns {Array<Object>} the full course list after the upsert
+ */
+export function upsertCourse(course) {
+  if (!course || typeof course.id !== 'string' || course.id === '') {
+    throw new Error('upsertCourse: a course with a string id is required');
+  }
+  const list = getCourses();
+  const idx = list.findIndex((c) => c.id === course.id);
+  const next = idx >= 0 ? list.map((c, i) => (i === idx ? course : c)) : [...list, course];
+  setCourses(next);
+  return next;
+}
 
 // --- Rounds (history) ----------------------------------------------------------
 
