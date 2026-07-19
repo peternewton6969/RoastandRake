@@ -1,8 +1,9 @@
 # Roast and Rake Golf Scoring App
 
 (Formerly "4 Right!" — renamed 2026-07-19. The local project directory is still
-`C:\Projects\4Right` and the internal `fourright_*` localStorage keys are unchanged
-to preserve existing data.)
+`C:\Projects\4Right`. The localStorage keys were migrated from the `fourright_`
+prefix to `roastandrake_` via a one-time copy-on-load migration
+(`store.migrateStorageKeys`, run in `main.jsx`), so existing data carries over.)
 
 This is a personal golf scoring app for a regular group at Prestonwood Country Club in Dallas.
 Core players: Peter Newton, Aaron Bailey, Sean Cunningham, Brooks Kaufman.

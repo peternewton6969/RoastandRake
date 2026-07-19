@@ -1,8 +1,13 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
-import { migratePlayers, loadDefaultCourses } from './storage/store.js';
+import { migrateStorageKeys, migratePlayers, loadDefaultCourses } from './storage/store.js';
 import './styles.css';
+
+// One-time migration of the localStorage keys from the pre-rebrand `fourright_`
+// prefix to `roastandrake_`. MUST run before any store read (below and in-app) so
+// existing rosters, rounds, saved API keys, cache, and analytics carry over.
+migrateStorageKeys();
 
 // One-time migration of any legacy player profiles (single "name" field) to the
 // new { firstName, lastName, nickname, ... } model before the app renders.

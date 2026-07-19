@@ -27,7 +27,7 @@ const NOTE_FIELD = 'textarea[aria-label="New character note"]';
 async function openEditScreen(page) {
   await page.goto('/#/home');
   await page.evaluate((p) => {
-    localStorage.setItem('fourright_players', JSON.stringify([p]));
+    localStorage.setItem('roastandrake_players', JSON.stringify([p]));
   }, PLAYER);
   await page.goto(`/#/players/${PLAYER.id}/edit`);
   await expect(page.locator(NOTE_FIELD)).toBeVisible();
@@ -35,7 +35,7 @@ async function openEditScreen(page) {
 
 const storedNoteCount = (page) =>
   page.evaluate(() => {
-    const p = JSON.parse(localStorage.getItem('fourright_players') || '[]')[0];
+    const p = JSON.parse(localStorage.getItem('roastandrake_players') || '[]')[0];
     return (p?.characterNotes || []).length;
   });
 

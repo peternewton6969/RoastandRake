@@ -13,8 +13,8 @@
 const OPENGOLF_BASE = 'https://api.opengolfapi.org/v1';
 const GOLFAPI_BASE = 'https://api.golfapi.io/v1';
 
-const KEY_STORAGE = 'fourright_golfapi_key';
-const CACHE_STORAGE = 'fourright_course_cache'; // { [courseId]: normalizedScorecard }
+const KEY_STORAGE = 'roastandrake_golfapi_key';
+const CACHE_STORAGE = 'roastandrake_course_cache'; // { [courseId]: normalizedScorecard }
 
 // --- golfApi.io key (entered once, kept on this device) ------------------------
 

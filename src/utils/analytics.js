@@ -2,7 +2,7 @@
 // a pure summarizer the /analytics dashboard renders. Everything lives in
 // localStorage (this app has no backend), capped so the log can't grow unbounded.
 
-const ANALYTICS_KEY = 'fourright_analytics';
+const ANALYTICS_KEY = 'roastandrake_analytics';
 const MAX_EVENTS = 1000;
 
 // Event type vocabulary — imported by the course-selection flow so the strings

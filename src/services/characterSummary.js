@@ -8,7 +8,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 
-const KEY_STORAGE = 'fourright_anthropic_key';
+const KEY_STORAGE = 'roastandrake_anthropic_key';
 const MODEL = 'claude-sonnet-4-6';
 
 const SYSTEM_PROMPT =

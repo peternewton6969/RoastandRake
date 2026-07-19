@@ -63,8 +63,8 @@ async function openRoundSetup(page, { withKey = true } = {}) {
   await page.goto('/#/home');
   await page.evaluate(
     ({ players, withKey }) => {
-      localStorage.setItem('fourright_players', JSON.stringify(players));
-      if (withKey) localStorage.setItem('fourright_golfapi_key', 'gk_test_key');
+      localStorage.setItem('roastandrake_players', JSON.stringify(players));
+      if (withKey) localStorage.setItem('roastandrake_golfapi_key', 'gk_test_key');
     },
     { players: PLAYERS, withKey },
   );
@@ -73,7 +73,7 @@ async function openRoundSetup(page, { withKey = true } = {}) {
 }
 
 const analytics = (page) =>
-  page.evaluate(() => JSON.parse(localStorage.getItem('fourright_analytics') || '[]'));
+  page.evaluate(() => JSON.parse(localStorage.getItem('roastandrake_analytics') || '[]'));
 const types = (events) => events.map((e) => e.type);
 
 test('search → live fetch → tee select → confirm logs the full funnel', async ({ page }) => {
@@ -100,8 +100,8 @@ test('search → live fetch → tee select → confirm logs the full funnel', as
 
   // The fetched course is persisted for downstream screens, and cached.
   const persisted = await page.evaluate(() => ({
-    courses: JSON.parse(localStorage.getItem('fourright_courses') || '[]').map((c) => c.id),
-    cache: Object.keys(JSON.parse(localStorage.getItem('fourright_course_cache') || '{}')),
+    courses: JSON.parse(localStorage.getItem('roastandrake_courses') || '[]').map((c) => c.id),
+    cache: Object.keys(JSON.parse(localStorage.getItem('roastandrake_course_cache') || '{}')),
   }));
   expect(persisted.courses).toContain('pebble-1');
   expect(persisted.cache).toContain('pebble-1');

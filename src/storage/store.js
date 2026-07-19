@@ -6,10 +6,10 @@
 import { generateId } from '../utils/generateId.js';
 
 export const STORAGE_KEYS = {
-  players: 'fourright_players',
-  courses: 'fourright_courses',
-  rounds: 'fourright_rounds',
-  activeRound: 'fourright_active_round',
+  players: 'roastandrake_players',
+  courses: 'roastandrake_courses',
+  rounds: 'roastandrake_rounds',
+  activeRound: 'roastandrake_active_round',
 };
 
 // --- Storage backend -----------------------------------------------------------
@@ -55,6 +55,38 @@ function writeKey(key, value) {
 
 function clearKey(key) {
   backend().removeItem(key);
+}
+
+// --- One-time key migration (4 Right! -> Roast and Rake rebrand) ----------------
+// The app's localStorage keys were renamed from the `fourright_` prefix to
+// `roastandrake_`. This copies any existing data from each old key to the new key
+// (raw string copy, so it works for both JSON blobs and plain-string API keys),
+// without clobbering data already under the new key, then retires the old key.
+// Idempotent — safe to run on every startup. Must run BEFORE any store reads.
+const LEGACY_KEY_RENAMES = [
+  ['fourright_players', 'roastandrake_players'],
+  ['fourright_courses', 'roastandrake_courses'],
+  ['fourright_rounds', 'roastandrake_rounds'],
+  ['fourright_active_round', 'roastandrake_active_round'],
+  ['fourright_anthropic_key', 'roastandrake_anthropic_key'],
+  ['fourright_golfapi_key', 'roastandrake_golfapi_key'],
+  ['fourright_course_cache', 'roastandrake_course_cache'],
+  ['fourright_analytics', 'roastandrake_analytics'],
+];
+
+/** Copy pre-rebrand `fourright_*` values to their `roastandrake_*` keys once. */
+export function migrateStorageKeys() {
+  const store = backend();
+  for (const [oldKey, newKey] of LEGACY_KEY_RENAMES) {
+    try {
+      const oldVal = store.getItem(oldKey);
+      if (oldVal == null) continue; // nothing stored under the old key
+      if (store.getItem(newKey) == null) store.setItem(newKey, oldVal); // don't clobber
+      store.removeItem(oldKey); // retire the old key either way
+    } catch {
+      /* one key failing must not abort the rest */
+    }
+  }
 }
 
 // --- Players (variable-size roster) --------------------------------------------

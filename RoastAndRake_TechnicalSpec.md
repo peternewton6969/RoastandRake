@@ -71,17 +71,23 @@ tests + 8 mobile WebKit tests**; the engine is unchanged.
 
 Most state lives in browser local storage. No backend. No auth. Core keys:
 
-- `fourright_players` -- player roster
-- `fourright_courses` -- course data (pre-loaded Prestonwood set + on-demand fetched courses)
-- `fourright_rounds` -- round history
-- `fourright_active_round` -- current round in progress (mirrors the active entry in rounds)
+- `roastandrake_players` -- player roster
+- `roastandrake_courses` -- course data (pre-loaded Prestonwood set + on-demand fetched courses)
+- `roastandrake_rounds` -- round history
+- `roastandrake_active_round` -- current round in progress (mirrors the active entry in rounds)
 
 Plus, added for the course-search + analytics features (§1.8):
 
-- `fourright_course_cache` -- fetched scorecards, keyed by course id
-- `fourright_golfapi_key` -- golfApi.io API key (this device only)
-- `fourright_analytics` -- course-selection event log (capped at 1000)
-- `fourright_anthropic_key` -- Claude API key for the AI summary (this device only, §1.7)
+- `roastandrake_course_cache` -- fetched scorecards, keyed by course id
+- `roastandrake_golfapi_key` -- golfApi.io API key (this device only)
+- `roastandrake_analytics` -- course-selection event log (capped at 1000)
+- `roastandrake_anthropic_key` -- Claude API key for the AI summary (this device only, §1.7)
+
+**Key migration:** these keys used the `fourright_` prefix before the rebrand. On
+startup `store.migrateStorageKeys()` (called first in `main.jsx`) copies any
+`fourright_*` value to its `roastandrake_*` key once — a raw copy that handles both
+JSON blobs and plain-string API keys, without clobbering data already under the new
+key — then retires the old key. Idempotent; a no-op on fresh installs.
 
 ---
 

@@ -7,6 +7,7 @@ import {
   getActiveRound, setActiveRound, clearActiveRound,
   clearAll,
   defaultCourses, loadDefaultCourses,
+  migrateStorageKeys,
 } from '../../src/storage/store.js';
 
 // A minimal localStorage stand-in for exercising the browser code path.
@@ -197,10 +198,10 @@ describe('store — key isolation', () => {
 
   it('uses the spec-defined storage keys', () => {
     expect(STORAGE_KEYS).toEqual({
-      players: 'fourright_players',
-      courses: 'fourright_courses',
-      rounds: 'fourright_rounds',
-      activeRound: 'fourright_active_round',
+      players: 'roastandrake_players',
+      courses: 'roastandrake_courses',
+      rounds: 'roastandrake_rounds',
+      activeRound: 'roastandrake_active_round',
     });
   });
 });
@@ -226,5 +227,49 @@ describe('store — localStorage backend', () => {
     globalThis.localStorage = fake;
     fake.map.set(STORAGE_KEYS.courses, '{not valid json');
     expect(getCourses()).toEqual([]);
+  });
+});
+
+// --- Rebrand key migration (fourright_ -> roastandrake_) ------------------------
+
+describe('store — migrateStorageKeys', () => {
+  it('copies legacy fourright_ values to the new keys and retires the old ones', () => {
+    const fake = makeFakeLocalStorage();
+    globalThis.localStorage = fake;
+    fake.map.set('fourright_players', JSON.stringify([{ id: 'p1' }])); // JSON blob
+    fake.map.set('fourright_anthropic_key', 'sk-ant-legacy'); // plain string, not JSON
+
+    migrateStorageKeys();
+
+    expect(fake.map.get('roastandrake_players')).toBe(JSON.stringify([{ id: 'p1' }]));
+    expect(fake.map.get('roastandrake_anthropic_key')).toBe('sk-ant-legacy');
+    expect(fake.map.has('fourright_players')).toBe(false);
+    expect(fake.map.has('fourright_anthropic_key')).toBe(false);
+    // The store now reads the migrated roster through the new key.
+    expect(getPlayers()).toEqual([{ id: 'p1' }]);
+  });
+
+  it('does not clobber data already under the new key, but still retires the old', () => {
+    const fake = makeFakeLocalStorage();
+    globalThis.localStorage = fake;
+    fake.map.set('fourright_analytics', JSON.stringify([{ type: 'old' }]));
+    fake.map.set('roastandrake_analytics', JSON.stringify([{ type: 'new' }]));
+
+    migrateStorageKeys();
+
+    expect(fake.map.get('roastandrake_analytics')).toBe(JSON.stringify([{ type: 'new' }]));
+    expect(fake.map.has('fourright_analytics')).toBe(false);
+  });
+
+  it('is idempotent and leaves untouched keys alone', () => {
+    const fake = makeFakeLocalStorage();
+    globalThis.localStorage = fake;
+    fake.map.set('roastandrake_rounds', JSON.stringify([{ id: 'r1' }]));
+
+    migrateStorageKeys();
+    migrateStorageKeys();
+
+    expect(fake.map.get('roastandrake_rounds')).toBe(JSON.stringify([{ id: 'r1' }]));
+    expect(fake.map.has('fourright_rounds')).toBe(false);
   });
 });
