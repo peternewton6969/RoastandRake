@@ -18,6 +18,7 @@ import { logEvent, EVENTS } from '../utils/analytics.js';
 import AppHeader from './AppChrome.jsx';
 import CoursePicker from './CoursePicker.jsx';
 import NumericKeypad from './NumericKeypad.jsx';
+import GameInfoModal from './GameInfoModal.jsx';
 
 // Screen 3: Round Setup. Single scrollable screen — date, course, games
 // (team / individual / junk), conditional team assignment, dynamic payouts —
@@ -118,8 +119,12 @@ const styles = {
   }),
   pairRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 },
   junkGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 },
+  gameCell: { position: 'relative', display: 'flex' },
   gameBtn: (active) => ({
+    flex: 1,
     minHeight: 56,
+    // Reserve room on the right so the centered label clears the corner ⓘ icon.
+    padding: '0 40px',
     borderRadius: 12,
     border: active ? 'none' : `1px solid ${C.border}`,
     background: active ? C.green : C.surface2,
@@ -131,6 +136,24 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  }),
+  infoBtn: (active) => ({
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 44,
+    height: 44,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: 'none',
+    color: active ? 'rgba(10, 22, 40, 0.75)' : C.dim,
+    fontSize: 17,
+    lineHeight: 1,
+    cursor: 'pointer',
+    padding: 0,
+    zIndex: 2,
   }),
   teamRow: {
     display: 'flex',
@@ -268,6 +291,38 @@ function PayoutRow({ label, value, active, onTap, elevated }) {
   );
 }
 
+/**
+ * One selectable game with a corner "How to play" ⓘ icon. The toggle button and the
+ * info button are siblings (not nested) so both are real, independently tappable
+ * controls. Tapping the icon opens the rules modal without toggling the game.
+ */
+function GameCell({ label, active, onToggle, onInfo }) {
+  return (
+    <div style={styles.gameCell}>
+      <button
+        type="button"
+        style={styles.gameBtn(active)}
+        aria-pressed={active}
+        onClick={onToggle}
+      >
+        {active && <span>✓</span>}
+        {label}
+      </button>
+      <button
+        type="button"
+        style={styles.infoBtn(active)}
+        aria-label={`How to play ${label}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onInfo();
+        }}
+      >
+        ⓘ
+      </button>
+    </div>
+  );
+}
+
 export default function RoundSetup({ navigate, playerIds }) {
   // Players for this round: exactly those selected (order preserved), else the
   // full roster as a fallback (e.g. arriving via the legacy round-setup route).
@@ -312,6 +367,7 @@ export default function RoundSetup({ navigate, playerIds }) {
   const [junkGames, setJunkGames] = useState(() => JUNK_GAMES.map((g) => g.key)); // all on
   const [payouts, setPayouts] = useState(() => ({ ...PAYOUT_DEFAULTS }));
   const [activePayout, setActivePayout] = useState(null); // key of field the keypad edits
+  const [infoGame, setInfoGame] = useState(null); // game key whose How-To modal is open
   const [teams, setTeams] = useState(() => {
     // Default: first half of players to A, the rest to B.
     const half = Math.ceil(players.length / 2);
@@ -497,21 +553,15 @@ export default function RoundSetup({ navigate, playerIds }) {
               <span style={styles.sublabel}>Team Game</span>
               <span style={styles.note}>Pick one or none</span>
               <div style={styles.pairRow}>
-                {TEAM_GAMES.map((g) => {
-                  const active = teamGame === g.key;
-                  return (
-                    <button
-                      key={g.key}
-                      type="button"
-                      style={styles.gameBtn(active)}
-                      aria-pressed={active}
-                      onClick={() => toggleTeamGame(g.key)}
-                    >
-                      {active && <span>✓</span>}
-                      {g.label}
-                    </button>
-                  );
-                })}
+                {TEAM_GAMES.map((g) => (
+                  <GameCell
+                    key={g.key}
+                    label={g.label}
+                    active={teamGame === g.key}
+                    onToggle={() => toggleTeamGame(g.key)}
+                    onInfo={() => setInfoGame(g.key)}
+                  />
+                ))}
               </div>
               {teamGameSelected && playerCount === 2 && (
                 <span style={styles.note}>1v1 — teams assigned automatically</span>
@@ -556,42 +606,30 @@ export default function RoundSetup({ navigate, playerIds }) {
           <span style={styles.sublabel}>Individual Games</span>
           <span style={styles.note}>Pick any</span>
           <div style={styles.pairRow}>
-            {INDIVIDUAL_GAMES.map((g) => {
-              const active = individualGames.includes(g.key);
-              return (
-                <button
-                  key={g.key}
-                  type="button"
-                  style={styles.gameBtn(active)}
-                  aria-pressed={active}
-                  onClick={() => toggleIndividual(g.key)}
-                >
-                  {active && <span>✓</span>}
-                  {g.label}
-                </button>
-              );
-            })}
+            {INDIVIDUAL_GAMES.map((g) => (
+              <GameCell
+                key={g.key}
+                label={g.label}
+                active={individualGames.includes(g.key)}
+                onToggle={() => toggleIndividual(g.key)}
+                onInfo={() => setInfoGame(g.key)}
+              />
+            ))}
           </div>
 
           {/* Junk */}
           <span style={styles.sublabel}>Junk</span>
           <span style={styles.note}>All on by default</span>
           <div style={styles.junkGrid}>
-            {JUNK_GAMES.map((g) => {
-              const active = junkGames.includes(g.key);
-              return (
-                <button
-                  key={g.key}
-                  type="button"
-                  style={styles.gameBtn(active)}
-                  aria-pressed={active}
-                  onClick={() => toggleJunk(g.key)}
-                >
-                  {active && <span>✓</span>}
-                  {g.label}
-                </button>
-              );
-            })}
+            {JUNK_GAMES.map((g) => (
+              <GameCell
+                key={g.key}
+                label={g.label}
+                active={junkGames.includes(g.key)}
+                onToggle={() => toggleJunk(g.key)}
+                onInfo={() => setInfoGame(g.key)}
+              />
+            ))}
           </div>
         </section>
 
@@ -634,6 +672,8 @@ export default function RoundSetup({ navigate, playerIds }) {
         onKey={handleKeypadKey}
         onDone={() => setActivePayout(null)}
       />
+
+      <GameInfoModal gameKey={infoGame} onClose={() => setInfoGame(null)} />
     </>
   );
 }
