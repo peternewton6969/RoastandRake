@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
+import { HOW_TO } from '../utils/gameRules.js';
 
-// "How To Play" modal shown from the info (ⓘ) icons on the Round Setup games.
-// Plain-language rules for each game, keyed by the same game keys RoundSetup uses.
+// "How To Play" modal shown from the info (ⓘ) icons on the Round Setup games, plus
+// the shared modal shell/styles reused by the Score Entry rules quick-reference.
+// Rule text comes from the shared HOW_TO source in utils/gameRules.js.
 
 const C = {
   surface2: '#162d4a',
@@ -11,70 +13,11 @@ const C = {
   dim: '#94a3b8',
 };
 
-// Titles + rules copy. Keys match RoundSetup's TEAM/INDIVIDUAL/JUNK game keys.
-export const HOW_TO = {
-  bestBall: {
-    title: 'Best Ball',
-    body:
-      'Two-player teams. Each player plays their own ball. The lower net score of the two ' +
-      'teammates counts as the team score on each hole. Best team score wins the hole. Most ' +
-      'holes won wins the match.',
-  },
-  scramble: {
-    title: 'Scramble',
-    body:
-      'Two-player teams. Both players tee off. The team picks the best shot and both play from ' +
-      'that spot. Repeat until holed out. One team score per hole. Lowest score wins.',
-  },
-  skins: {
-    title: 'Skins',
-    body:
-      'Every hole is worth one skin. Lowest net score on the hole wins the skin. If two or more ' +
-      'players tie, the skin carries to the next hole. Player with the most skins at the end wins ' +
-      'the pot.',
-  },
-  wolf: {
-    title: 'Wolf',
-    body:
-      'One player is the Wolf each hole, rotating each tee box. The Wolf watches each player hit, ' +
-      'then decides after each shot whether to pick that player as a partner. If the Wolf goes ' +
-      'alone and wins the hole, they collect double. If the Wolf loses alone, they pay double. ' +
-      'The Wolf can also declare Lone Wolf before anyone hits.',
-  },
-  snake: {
-    title: 'Snake',
-    body:
-      'Nobody wants the snake. Three-putt and you hold it. Someone else three-putts and it passes ' +
-      'to them. Whoever holds the snake at the end of the round pays every other player the snake ' +
-      'amount. No three-putts all round means no payout.',
-  },
-  greenie: {
-    title: 'Greenie',
-    body:
-      'Par 3 holes only. Closest to the pin on the tee shot wins the greenie — but only if ' +
-      'that player makes par or better. No par, no greenie. One winner per par 3 hole.',
-  },
-  sandy: {
-    title: 'Sandy',
-    body:
-      'Hit it in the bunker and still make par or better net and you collect a sandy from every ' +
-      'other player. One sandy per hole regardless of how many bunkers you visit.',
-  },
-  netBirdie: {
-    title: 'Net Birdie',
-    body:
-      'Make a net birdie — one under par after strokes — and collect from every player ' +
-      'who did not. Multiple players can win on the same hole.',
-  },
-  netEagle: {
-    title: 'Net Eagle',
-    body:
-      'Make a net eagle — two under par after strokes — and collect from every player ' +
-      'who did not. Supersedes net birdie on the same hole.',
-  },
-};
+export { HOW_TO };
 
-const styles = {
+// Shared modal styling — reused by GameInfoModal and RoundRulesModal so both
+// screens present identical chrome and typography (the "same source" for rules UI).
+export const rulesModalStyles = {
   overlay: {
     position: 'fixed',
     inset: 0,
@@ -124,17 +67,19 @@ const styles = {
     marginBottom: 4,
   },
   title: { margin: '0 0 12px', fontSize: 22, fontWeight: 900, color: C.text, paddingRight: 36 },
+  sectionTitle: { margin: '0 0 6px', fontSize: 17, fontWeight: 800, color: C.green },
   body: { margin: 0, fontSize: 15, lineHeight: 1.6, color: C.text },
+  rule: { border: 'none', borderTop: `1px solid ${C.border}`, margin: '18px 0' },
 };
 
 /**
- * @param {{ gameKey: string|null, onClose: () => void }} props
- * Renders nothing when gameKey is null/unknown. Closes on Escape, backdrop tap,
- * and the top-right ✕. Locks background scroll while open.
+ * Reusable rules-modal shell: dark card with a green accent top border, a top-right
+ * ✕ close, backdrop-tap + Escape close, and a background scroll lock while open.
+ * @param {{ open: boolean, ariaLabel: string, onClose: () => void, children: React.ReactNode }} props
  */
-export default function GameInfoModal({ gameKey, onClose }) {
+export function RulesModalShell({ open, ariaLabel, onClose, children }) {
   useEffect(() => {
-    if (!gameKey) return undefined;
+    if (!open) return undefined;
     function onKey(e) {
       if (e.key === 'Escape') onClose();
     }
@@ -145,28 +90,47 @@ export default function GameInfoModal({ gameKey, onClose }) {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [gameKey, onClose]);
+  }, [open, onClose]);
 
-  if (!gameKey) return null;
-  const info = HOW_TO[gameKey];
-  if (!info) return null;
+  if (!open) return null;
 
   return (
     <div
-      style={styles.overlay}
+      style={rulesModalStyles.overlay}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label={`How to play ${info.title}`}
+      aria-label={ariaLabel}
     >
-      <div style={styles.card} onClick={(e) => e.stopPropagation()}>
-        <button type="button" style={styles.close} aria-label="Close" onClick={onClose}>
+      <div style={rulesModalStyles.card} onClick={(e) => e.stopPropagation()}>
+        <button type="button" style={rulesModalStyles.close} aria-label="Close" onClick={onClose}>
           ✕
         </button>
-        <span style={styles.kicker}>How to play</span>
-        <h2 style={styles.title}>{info.title}</h2>
-        <p style={styles.body}>{info.body}</p>
+        {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * @param {{ gameKey: string|null, onClose: () => void }} props
+ * Renders nothing when gameKey is null/unknown.
+ */
+export default function GameInfoModal({ gameKey, onClose }) {
+  const info = gameKey ? HOW_TO[gameKey] : null;
+  return (
+    <RulesModalShell
+      open={!!info}
+      ariaLabel={info ? `How to play ${info.title}` : ''}
+      onClose={onClose}
+    >
+      {info && (
+        <>
+          <span style={rulesModalStyles.kicker}>How to play</span>
+          <h2 style={rulesModalStyles.title}>{info.title}</h2>
+          <p style={rulesModalStyles.body}>{info.body}</p>
+        </>
+      )}
+    </RulesModalShell>
   );
 }

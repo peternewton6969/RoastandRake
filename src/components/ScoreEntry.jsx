@@ -15,6 +15,7 @@ import {
 import { getPlayerName } from '../utils/playerUtils.js';
 import { withLegacyRoundFields } from '../utils/roundModel.js';
 import AppHeader from './AppChrome.jsx';
+import RoundRulesModal from './RoundRulesModal.jsx';
 
 // Screen 5: Score Entry, per hole.
 // One-screen, no-scroll layout: green header, a status strip, four always-visible
@@ -101,6 +102,7 @@ export default function ScoreEntry({ navigate }) {
   const [scores, setScores] = useState(() => scoresForHole(initialHole));
   const [snakePrompt, setSnakePrompt] = useState(false);
   const [endPrompt, setEndPrompt] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // Reload working scores whenever the selected hole changes (defaults to par).
   useEffect(() => {
@@ -273,10 +275,22 @@ export default function ScoreEntry({ navigate }) {
     cursor: 'pointer',
   };
 
-  const boardAction = (
-    <button type="button" className="hdr-action" onClick={() => navigate('scoreboard')}>
-      Board
-    </button>
+  // Right header slot: a small "?" rules quick-reference next to the Board action.
+  const headerActions = (
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      <button
+        type="button"
+        className="hdr-action"
+        aria-label="Round rules"
+        style={{ fontSize: 20, fontWeight: 800 }}
+        onClick={() => setRulesOpen(true)}
+      >
+        ?
+      </button>
+      <button type="button" className="hdr-action" onClick={() => navigate('scoreboard')}>
+        Board
+      </button>
+    </div>
   );
 
   // End Round lives in the hamburger drawer rather than the header: a vertical
@@ -293,7 +307,7 @@ export default function ScoreEntry({ navigate }) {
           tone="green"
           title={`Hole ${currentHole} — Par ${holeData.par}`}
           subtitle={`HCP ${holeData.hcpRank}`}
-          right={boardAction}
+          right={headerActions}
           menuActions={menuActions}
           active="new-round"
         />
@@ -488,6 +502,9 @@ export default function ScoreEntry({ navigate }) {
           </div>
         </div>
       </div>
+
+      {/* Rules quick-reference: rules for the games active in this round */}
+      <RoundRulesModal open={rulesOpen} games={round.games} onClose={() => setRulesOpen(false)} />
 
       {/* Simultaneous three-putt resolution */}
       {snakePrompt && (
