@@ -82,3 +82,10 @@ test('Settlement: the ? opens a rules modal showing only the active games', asyn
   await expect(page.getByRole('heading', { name: 'Who Pays Who' })).toBeVisible();
   await verifyRulesModal(page);
 });
+
+test('Scoreboard: the ? opens a rules modal showing only the active games', async ({ page }) => {
+  await seed(page);
+  await page.goto('/#/scoreboard');
+  await expect(page.getByRole('tab', { name: 'Round' })).toBeVisible();
+  await verifyRulesModal(page);
+});

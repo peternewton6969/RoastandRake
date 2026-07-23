@@ -17,6 +17,7 @@ import {
 import { getPlayerName } from '../utils/playerUtils.js';
 import { withLegacyRoundFields } from '../utils/roundModel.js';
 import AppHeader from './AppChrome.jsx';
+import RoundRulesModal from './RoundRulesModal.jsx';
 
 // Screen 6: Scoreboard (spec section 4.2). Read-only. Reachable from any hole.
 // Three tabs: Round (match grid, skins standings, snake history), Players
@@ -67,6 +68,7 @@ export default function Scoreboard({ navigate }) {
   }, [round]);
 
   const [tab, setTab] = useState('round');
+  const [rulesOpen, setRulesOpen] = useState(false);
   const enabledGames = round ? GAME_META.filter((g) => round.games[g.key]) : [];
   const [gameKey, setGameKey] = useState(enabledGames[0]?.key ?? 'matchPlay');
 
@@ -197,15 +199,27 @@ export default function Scoreboard({ navigate }) {
   if (games.netEagle) payoutRows.push({ label: 'Net Eagle', amount: dollars(pay.netEagle) });
   if (games.sandie) payoutRows.push({ label: 'Sandie', amount: dollars(pay.sandie) });
 
-  const closeBtn = (
-    <button
-      type="button"
-      className="hdr-action"
-      aria-label="Close scoreboard"
-      onClick={() => navigate('score-entry')}
-    >
-      ✕
-    </button>
+  // Right header slot: a "?" rules quick-reference next to the close ✕.
+  const headerActions = (
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      <button
+        type="button"
+        className="hdr-action"
+        aria-label="Round rules"
+        style={{ fontSize: 20, fontWeight: 800 }}
+        onClick={() => setRulesOpen(true)}
+      >
+        ?
+      </button>
+      <button
+        type="button"
+        className="hdr-action"
+        aria-label="Close scoreboard"
+        onClick={() => navigate('score-entry')}
+      >
+        ✕
+      </button>
+    </div>
   );
 
   const HoleRow = ({ holes }) => (
@@ -235,7 +249,8 @@ export default function Scoreboard({ navigate }) {
 
   return (
     <>
-      <AppHeader navigate={navigate} title="Scoreboard" right={closeBtn} active="new-round" />
+      <AppHeader navigate={navigate} title="Scoreboard" right={headerActions} active="new-round" />
+      <RoundRulesModal open={rulesOpen} games={round.games} onClose={() => setRulesOpen(false)} />
       <main className="screen board">
         <div className="tabs" role="tablist">
           {[
