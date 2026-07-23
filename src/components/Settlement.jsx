@@ -17,7 +17,9 @@ import {
   computeSettlement,
 } from '../engine/index.js';
 import { getPlayerName } from '../utils/playerUtils.js';
+import { withLegacyRoundFields } from '../utils/roundModel.js';
 import AppHeader from './AppChrome.jsx';
+import RoundRulesModal from './RoundRulesModal.jsx';
 
 // Screen 7: End of Round — Settlement (spec section 4.2).
 // Final team-game result, skins standings, snake holder, side-bet totals, a
@@ -93,6 +95,7 @@ export default function Settlement({ navigate }) {
   const [round] = useState(getActiveRound);
   const [players] = useState(getPlayers);
   const [saved, setSaved] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const course = useMemo(() => (round ? courseForRound(round) : null), [round]);
   const nameById = useMemo(() => {
@@ -206,9 +209,25 @@ export default function Settlement({ navigate }) {
     setSaved(true);
   }
 
+  // Rules quick-reference for the games this round was played with (same map the
+  // score-entry modal reads). The round here is the grouped shape; normalize it.
+  const rulesGames = withLegacyRoundFields(round).games;
+  const rulesButton = (
+    <button
+      type="button"
+      className="hdr-action"
+      aria-label="Round rules"
+      style={{ fontSize: 20, fontWeight: 800 }}
+      onClick={() => setRulesOpen(true)}
+    >
+      ?
+    </button>
+  );
+
   return (
     <>
-      <AppHeader navigate={navigate} title="Settlement" active="new-round" />
+      <AppHeader navigate={navigate} title="Settlement" active="new-round" right={rulesButton} />
+      <RoundRulesModal open={rulesOpen} games={rulesGames} onClose={() => setRulesOpen(false)} />
       <main className="screen board">
         <p className="settle-subhead">Hate paying out? Play better.</p>
         <p className="screen-intro settle-course">

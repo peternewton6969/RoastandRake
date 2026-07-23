@@ -33,7 +33,7 @@ const ACTIVE_ROUND = {
   updatedAt: '2026-07-23T00:00:00.000Z',
 };
 
-async function openScoreEntry(page) {
+async function seed(page) {
   await page.goto('/#/home');
   await page.evaluate(
     ({ players, round }) => {
@@ -42,13 +42,11 @@ async function openScoreEntry(page) {
     },
     { players: PLAYERS, round: ACTIVE_ROUND },
   );
-  await page.goto('/#/score-entry');
-  await expect(page.getByRole('heading', { name: /Hole 1/ })).toBeVisible();
 }
 
-test('the ? opens a rules modal showing only the active games', async ({ page }) => {
-  await openScoreEntry(page);
-
+// The rules modal behaves identically on Score Entry and Settlement: same "?" trigger,
+// same modal, showing only the round's active games.
+async function verifyRulesModal(page) {
   await page.getByRole('button', { name: 'Round rules' }).tap();
 
   const dialog = page.getByRole('dialog', { name: 'Rules for this round' });
@@ -69,4 +67,18 @@ test('the ? opens a rules modal showing only the active games', async ({ page })
   // Closes from the top-right ✕.
   await dialog.getByRole('button', { name: 'Close' }).tap();
   await expect(dialog).toHaveCount(0);
+}
+
+test('Score Entry: the ? opens a rules modal showing only the active games', async ({ page }) => {
+  await seed(page);
+  await page.goto('/#/score-entry');
+  await expect(page.getByRole('heading', { name: /Hole 1/ })).toBeVisible();
+  await verifyRulesModal(page);
+});
+
+test('Settlement: the ? opens a rules modal showing only the active games', async ({ page }) => {
+  await seed(page);
+  await page.goto('/#/settlement');
+  await expect(page.getByRole('heading', { name: 'Who Pays Who' })).toBeVisible();
+  await verifyRulesModal(page);
 });
